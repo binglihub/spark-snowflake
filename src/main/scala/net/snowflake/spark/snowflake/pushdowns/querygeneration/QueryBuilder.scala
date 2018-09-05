@@ -2,7 +2,7 @@ package net.snowflake.spark.snowflake.pushdowns.querygeneration
 
 import java.util.NoSuchElementException
 
-import net.snowflake.spark.snowflake.{SnowflakePushdownException, SnowflakeRelation}
+import net.snowflake.spark.snowflake.{SnowflakePushdownException, SnowflakeRelation, SnowflakeSQLStatement}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.{Alias, Attribute, AttributeReference, Expression, Literal, NamedExpression}
@@ -39,6 +39,11 @@ private[querygeneration] class QueryBuilder(plan: LogicalPlan) {
     val query = treeRoot.getQuery()
     // log.info(s"""Generated query: '${prettyPrint(query)}'""")
     query
+  }
+
+  lazy val statement: SnowflakeSQLStatement = {
+    checkTree()
+    treeRoot.getSQLStatement()
   }
 
   /** Fetch the output attributes for Spark. */
@@ -78,7 +83,8 @@ private[querygeneration] class QueryBuilder(plan: LogicalPlan) {
     val schema = StructType(getOutput.map(attr =>
       StructField(attr.name, attr.dataType, attr.nullable)))
 
-    source.relation.buildScanFromSQL[T](query, Some(schema))
+    //source.relation.buildScanFromSQL[T](query, Some(schema))
+    source.relation.buildScanFromSQL[T](query, Some(schema), Some(statement))
   }
 
   private def checkTree(): Unit = {

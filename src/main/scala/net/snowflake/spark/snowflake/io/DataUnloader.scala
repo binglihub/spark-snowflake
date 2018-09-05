@@ -18,7 +18,7 @@ package net.snowflake.spark.snowflake.io
 
 import java.sql.Connection
 
-import net.snowflake.spark.snowflake.{JDBCWrapper, SnowflakeTelemetry, Utils}
+import net.snowflake.spark.snowflake._
 import net.snowflake.spark.snowflake.Parameters.MergedParameters
 import net.snowflake.spark.snowflake.io.SupportedFormat.SupportedFormat
 import org.apache.spark.sql.SQLContext
@@ -33,8 +33,8 @@ private[io] trait DataUnloader {
   val params: MergedParameters
   val sqlContext: SQLContext
 
-  @transient def setup(preStatements: Seq[String] = Seq.empty, sql: String, conn: Connection, keepOpen: Boolean = false)
-    : Long = {
+  @transient def setup(preStatements: Seq[String] = Seq.empty, sql: String, conn: Connection, keepOpen: Boolean = false, statement: Option[SnowflakeSQLStatement] = None)
+  : Long = {
     try {
       // Prologue
       val prologueSql = Utils.genPrologueSql(params)
@@ -49,17 +49,19 @@ private[io] trait DataUnloader {
       preStatements.foreach { stmt =>
         jdbcWrapper.executeInterruptibly(conn, stmt)
       }
-      val res = jdbcWrapper.executeQueryInterruptibly(conn, sql)
+      val res = statement.map(_.execute(conn))
+        .getOrElse(jdbcWrapper.executeQueryInterruptibly(conn, sql))
 
       // Verify it's the expected format
       val sch = res.getMetaData
+
       assert(sch.getColumnCount == 3)
       assert(sch.getColumnName(1) == "rows_unloaded")
       assert(sch.getColumnTypeName(1) == "NUMBER") // First record must be in
       val first = res.next()
       assert(first)
       val numRows = res.getLong(1) // There can be no more records
-      val second  = res.next()
+      val second = res.next()
       assert(!second)
 
       Utils.executePostActions(jdbcWrapper, conn, params, params.table)
@@ -76,7 +78,7 @@ private[io] trait DataUnloader {
                        location: String,
                        compression: String,
                        credentialsString: Option[String],
-                       format:SupportedFormat = SupportedFormat.CSV
+                       format: SupportedFormat = SupportedFormat.CSV
                      ): String = {
 
     val credentials = credentialsString.getOrElse("")
@@ -85,7 +87,7 @@ private[io] trait DataUnloader {
     Utils.setLastCopyUnload(query)
 
     /** TODO(etduwx): Refactor this to be a collection of different options, and use a mapper
-    function to individually set each file_format and copy option. */
+      * function to individually set each file_format and copy option. */
 
     val (formatString, queryString): (String, String) = format match {
       case SupportedFormat.CSV =>
@@ -123,5 +125,56 @@ private[io] trait DataUnloader {
        |""".stripMargin.trim
 
 
+  }
+
+  @transient
+  def buildUnloadStatement(
+                       statement: SnowflakeSQLStatement,
+                       location: String,
+                       compression: String,
+                       credentialsString: Option[String],
+                       format: SupportedFormat = SupportedFormat.CSV
+                     ): SnowflakeSQLStatement = {
+
+    Utils.setLastCopyUnload(statement.toString)
+
+    ConstantString(s"copy into '$location'") +
+      (
+        format match {
+          case SupportedFormat.CSV =>
+            ConstantString("from (") + statement + ")"
+          case SupportedFormat.JSON =>
+            ConstantString("from (select object_construct(*) from (") + statement + "))"
+        }
+      )  +
+    credentialsString
+      .map(EmptySnowflakeSQLStatement() + ConstantString(_))
+      .getOrElse(EmptySnowflakeSQLStatement()) +
+      (
+        format match {
+          case SupportedFormat.CSV =>
+            ConstantString(
+              s"""
+                 |FILE_FORMAT = (
+                 |    TYPE=CSV
+                 |    COMPRESSION='$compression'
+                 |    FIELD_DELIMITER='|'
+                 |    FIELD_OPTIONALLY_ENCLOSED_BY='"'
+                 |    NULL_IF= ()
+                 |  )
+                 |  """.stripMargin
+            )
+          case SupportedFormat.JSON =>
+            ConstantString(
+              s"""
+                 |FILE_FORMAT = (
+                 |    TYPE=JSON
+                 |    COMPRESSION='$compression'
+                 |)
+                 |""".stripMargin
+            )
+        }
+      ) +
+    s"max_file_size = ${params.s3maxfilesize}"
   }
 }

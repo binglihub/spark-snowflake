@@ -87,13 +87,18 @@ class JDBCSuite extends IntegrationSuiteBase {
 //    df.where("num > 1").show()
 
     // insert into test_table values("abc"), ("123")
+//
+//    val st1 = StringVariable("abc") + ConstantString("),(") +
+//      StringVariable("123") + ConstantString(")")
+//
+//    val st2 = ConstantString(",(") + StringVariable("456") + ConstantString(")")
+//
+//    (ConstantString("insert into test_table values (") + st1 + st2).execute(conn)
 
-    val st1 = StringVariable("abc") + ConstantString("),(") +
-      StringVariable("123") + ConstantString(")")
-
-    val st2 = ConstantString(",(") + StringVariable("456") + ConstantString(")")
-
-    (ConstantString("insert into test_table values (") + st1 + st2).execute(conn)
+    val stmt = conn.prepareStatement("insert into test_table values (?), (?)")
+    stmt.setString(1, "a1")
+    stmt.setString(2, "a2")
+    DefaultJDBCWrapper.executePreparedQueryInterruptibly(stmt)
 
 
   }

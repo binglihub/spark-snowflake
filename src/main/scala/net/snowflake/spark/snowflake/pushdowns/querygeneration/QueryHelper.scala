@@ -1,11 +1,7 @@
 package net.snowflake.spark.snowflake.pushdowns.querygeneration
 
-import net.snowflake.spark.snowflake.SnowflakePushdownException
-import org.apache.spark.sql.catalyst.expressions.{
-  Attribute,
-  AttributeReference,
-  NamedExpression
-}
+import net.snowflake.spark.snowflake.{ConstantString, EmptySnowflakeSQLStatement, SnowflakePushdownException, SnowflakeSQLStatement}
+import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeReference, NamedExpression}
 
 /**
   * Helper class to maintain the fields, output, and projection expressions of
@@ -27,6 +23,7 @@ private[querygeneration] case class QueryHelper(
     outputAttributes: Option[Seq[Attribute]],
     alias: String,
     conjunction: String = "",
+    conjunctionStatement: SnowflakeSQLStatement = EmptySnowflakeSQLStatement(),
     fields: Option[Seq[Attribute]] = None) {
 
   val colSet =
@@ -73,10 +70,16 @@ private[querygeneration] case class QueryHelper(
         a.exprId,
         Some(alias)))
 
+  @Deprecated
   val source =
     if (children.nonEmpty)
       children
         .map(c => c.getQuery(useAlias = true))
         .mkString(s""" $conjunction """)
     else conjunction
+
+  val sourceStatement: SnowflakeSQLStatement =
+    if (children.nonEmpty)
+      mkStatement(children.map(_.getSQLStatement(useAlias = true)), conjunctionStatement)
+    else conjunctionStatement
 }

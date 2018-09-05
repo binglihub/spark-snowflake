@@ -1,11 +1,7 @@
 package net.snowflake.spark.snowflake.pushdowns
 
-import org.apache.spark.sql.catalyst.expressions.{
-  Alias,
-  Attribute,
-  Expression,
-  NamedExpression
-}
+import net.snowflake.spark.snowflake.{ConstantString, EmptySnowflakeSQLStatement, SnowflakeSQLStatement}
+import org.apache.spark.sql.catalyst.expressions.{Alias, Attribute, Expression, NamedExpression}
 import org.apache.spark.sql.types.MetadataBuilder
 import org.slf4j.LoggerFactory
 
@@ -32,6 +28,17 @@ package object querygeneration {
                                            alias: String): String = {
     "(" + text + ") AS " + wrap(alias)
   }
+
+  private[querygeneration] final def blockStatement(
+                                                   query: SnowflakeSQLStatement
+                                                   ): SnowflakeSQLStatement =
+    ConstantString("(") + query + ")"
+
+  private[querygeneration] final def blockStatement(
+                                                     query: SnowflakeSQLStatement,
+                                                     alias: String
+                                                   ): SnowflakeSQLStatement =
+    ConstantString("(") + query + ") AS" + wrap(alias)
 
   /** This adds an attribute as part of a SQL expression, searching in the provided
     * fields for a match, so the subquery qualifiers are correct.
@@ -67,6 +74,26 @@ package object querygeneration {
     identifier + name + identifier
   }
 
+  /**
+    * convert a seq of expression to snowflakeSQLStatement
+    */
+  private[querygeneration] final def mkStatement(
+                                                  seq: Seq[SnowflakeSQLStatement],
+                                                  delimiter: String
+                                                ): SnowflakeSQLStatement =
+    mkStatement(seq, EmptySnowflakeSQLStatement() + delimiter)
+
+
+  private[querygeneration] final def mkStatement(
+                                                  seq: Seq[SnowflakeSQLStatement],
+                                                  delimiter: SnowflakeSQLStatement
+                                                ): SnowflakeSQLStatement =
+    seq.foldLeft(EmptySnowflakeSQLStatement()){
+      case(left, exp) => if(left.isEmpty) exp else left + delimiter + exp
+    }
+
+
+  //todo: convertToStatement
   /** This performs the conversion from Spark expressions to SQL runnable by Snowflake.
     * We should have as many entries here as possible, or the translation will not be able ot happen.
     *
