@@ -35,6 +35,8 @@ private[io] trait DataUnloader {
 
   @transient def setup(preStatements: Seq[String] = Seq.empty, sql: String, conn: Connection, keepOpen: Boolean = false, statement: Option[SnowflakeSQLStatement] = None)
   : Long = {
+    println(s"------------->${statement.map(_.toString).getOrElse("Empty")}")
+
     try {
       // Prologue
       val prologueSql = Utils.genPrologueSql(params)

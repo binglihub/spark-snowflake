@@ -60,8 +60,8 @@ private[querygeneration] abstract sealed class SnowflakeQuery {
 
     val query =
       ConstantString(
-        s"""SELECT ${helper.columns.getOrElse("*")} FROM """) +
-        helper.conjunctionStatement + suffix
+        s"""select ${helper.columns.getOrElse("*")} from """) +
+        helper.conjunctionStatement + suffixStatement
 
     if (useAlias) blockStatement(query, helper.alias) else query
   }

@@ -118,7 +118,7 @@ class FullNewPushdownIntegrationSuite extends IntegrationSuiteBase {
 
   test("Select all columns.") {
     testDF(sql = s"""SELECT * FROM ${table_placeholder}1""",
-           ref = s"""SELECT * FROM ($test_table) AS "sf_connector_query_alias"""")
+           ref = s"""select * from ($test_table) as "sf_connector_query_alias"""")
   }
 
   test("Join") {

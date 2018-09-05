@@ -38,7 +38,7 @@ package object querygeneration {
                                                      query: SnowflakeSQLStatement,
                                                      alias: String
                                                    ): SnowflakeSQLStatement =
-    ConstantString("(") + query + ") AS" + wrap(alias)
+    ConstantString("(") + query + ") as" + wrap(alias)
 
   /** This adds an attribute as part of a SQL expression, searching in the provided
     * fields for a match, so the subquery qualifiers are correct.
